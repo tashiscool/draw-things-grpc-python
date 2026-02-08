@@ -10,12 +10,24 @@
       "start_width/start_height = pixel_size / 64 (FlatBuffer encoding)",
       "num_frames: 33 = ~1.3s video, 81 = ~3.2s video at 25fps",
       "49f spike in benchmarks was GPU contention, not real"
-    ]
+    ],
+    "causal_inference_guide": {
+      "what_it_does": "Splits video into overlapping chunks of N frames. pad=P means P frames overlap between adjacent chunks for temporal blending.",
+      "overhead": "Each pad frame is computed TWICE (once per chunk). With causal=17 pad=5, a 33f clip = 3 chunks with 10 wasted overlap frames (30% overhead).",
+      "rules": [
+        "num_frames <= 33: disable causal (0/0) — whole clip fits in memory on 48GB",
+        "num_frames 33-49: causal=33 pad=3 — 2 chunks, minimal overlap",
+        "num_frames 49-81: causal=41 pad=3 — 2-3 chunks, lean overlap",
+        "pad=0 is fastest but may cause visible seams at chunk boundaries",
+        "pad=3 is minimum for smooth blending, pad=5 is conservative"
+      ],
+      "benchmark_evidence": "9f no_causal was 10% faster than causal=17/pad=5 (64.8s vs 72.2s)"
+    }
   },
 
   "configs": {
     "a14b_lightning_fast": {
-      "_description": "A14B Lightning — designed for 4 steps, best prompt adherence at low step count",
+      "_description": "A14B Lightning 33f — designed for 4 steps, best prompt adherence at low step count",
       "_benchmark": "9.3s/frame at 640x384, 14.1s/frame at 832x448",
       "model": "wan_v2.2_a14b_hne_i2v_q8p.ckpt",
       "refiner_model": "wan_v2.2_a14b_lne_i2v_q8p.ckpt",
@@ -29,8 +41,9 @@
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 33,
       "refiner_start": 0.1,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 0,
+      "causal_inference_pad": 0,
+      "_causal_note": "33f fits in memory without chunking on 48GB",
       "tea_cache": false,
       "loras": [
         {"file": "wan_v2.2_a14b_hne_lightning_lora_f16.ckpt", "weight": 0.9, "mode": "BASE"},
@@ -53,8 +66,9 @@
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 33,
       "refiner_start": 0.1,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 0,
+      "causal_inference_pad": 0,
+      "_causal_note": "33f at 640x384 easily fits without chunking",
       "tea_cache": false,
       "loras": [
         {"file": "wan_v2.2_a14b_hne_lightning_lora_f16.ckpt", "weight": 0.9, "mode": "BASE"},
@@ -76,8 +90,9 @@
       "sampler": "DDIM_TRAILING",
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 33,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 0,
+      "causal_inference_pad": 0,
+      "_causal_note": "5B at 640x384 33f fits in 48GB without chunking",
       "tea_cache": false
     },
 
@@ -94,8 +109,9 @@
       "sampler": "DDIM_TRAILING",
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 33,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 0,
+      "causal_inference_pad": 0,
+      "_causal_note": "5B at 640x384 33f fits in 48GB without chunking",
       "tea_cache": false
     },
 
@@ -112,8 +128,9 @@
       "sampler": "DDIM_TRAILING",
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 33,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 0,
+      "causal_inference_pad": 0,
+      "_causal_note": "5B at 832x448 33f fits in 48GB without chunking",
       "tea_cache": false
     },
 
@@ -130,8 +147,9 @@
       "sampler": "DDIM_TRAILING",
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 81,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 41,
+      "causal_inference_pad": 3,
+      "_causal_note": "81f needs chunking. 41/3 = 2 chunks with only 3 overlap frames (vs 17/5 = 5 chunks with 20 overlap frames wasted)",
       "tea_cache": false
     },
 
@@ -150,8 +168,9 @@
       "seed_mode": "SCALE_ALIKE",
       "num_frames": 81,
       "refiner_start": 0.1,
-      "causal_inference": 17,
-      "causal_inference_pad": 5,
+      "causal_inference": 41,
+      "causal_inference_pad": 3,
+      "_causal_note": "A14B is larger than 5B — 81f definitely needs chunking. 41/3 = 2 lean chunks vs 17/5 = 5 wasteful chunks",
       "tea_cache": false,
       "loras": [
         {"file": "wan_v2.2_a14b_hne_lightning_lora_f16.ckpt", "weight": 0.9, "mode": "BASE"},
@@ -180,7 +199,9 @@
       "Resolution matters less at short clips, more at 49+ frames",
       "DDIM_TRAILING sampler is faster than UNIPC_TRAILING for 5B",
       "guidance_scale=1.0 was used in all benchmarks — 5B needs 5.0+ for prompt adherence",
-      "A14B Lightning is trained for guidance_scale=1.0, no need to increase"
+      "A14B Lightning is trained for guidance_scale=1.0, no need to increase",
+      "Disabling causal inference for <=33f clips saves ~10% (no wasted overlap computation)",
+      "Old causal=17/pad=5 on 33f = 3 chunks with 30% overlap waste; new causal=0 = single pass"
     ]
   }
 }
